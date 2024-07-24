@@ -2,12 +2,13 @@
 // @name         Twitter DM Cleaner
 // @homepage     https://github.com/daymade/Twitter-DM-Cleaner
 // @namespace    https://greasyfork.org/users/1121182
-// @version      0.6
+// @version      0.6.1
 // @author       daymade
 // @license      MIT
 // @description  One-click remove all the potential harassment spams in twitter's direct messages area.
 // @description:zh-CN 在Twitter私信中识别并高亮显示可能的骚扰信息，一键批量删除这些对话。
 // @match        https://x.com/messages
+// @match        https://x.com/messages/*
 // @match        https://x.com/messages/requests
 // @run-at       document-end
 // @grant        GM_registerMenuCommand
