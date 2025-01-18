@@ -2,7 +2,7 @@
 // @name         Twitter DM Cleaner
 // @homepage     https://github.com/daymade/Twitter-DM-Cleaner
 // @namespace    https://greasyfork.org/users/1121182
-// @version      0.7.0
+// @version      0.7.1
 // @author       daymade
 // @license      MIT
 // @description  One-click remove all the potential harassment spams in twitter's direct messages area.
@@ -22,6 +22,18 @@
     'use strict';
 
     let observer = null;
+
+    // [新增] 对 pushState / replaceState 做一层包裹，派发事件便于脚本捕获 SPA 路由切换
+    const _wrapHistory = (type) => {
+        const orig = history[type];
+        return function() {
+            const result = orig.apply(this, arguments);
+            window.dispatchEvent(new Event(type.toLowerCase()));
+            return result;
+        };
+    };
+    history.pushState = _wrapHistory('pushState');
+    history.replaceState = _wrapHistory('replaceState');
 
     // 添加 Tampermonkey 菜单选项
     GM_registerMenuCommand("批量删除私信", batchDeleteMessages);
@@ -256,9 +268,9 @@
             const findAndClickDeleteButton = () => {
                 const deleteButtons = Array.from(document.querySelectorAll('div[role="menuitem"]'));
                 const deleteButton = deleteButtons.find(item =>
-                                                        item.textContent.includes('Delete conversation') ||
-                                                        item.textContent.includes('删除对话')
-                                                       );
+                    item.textContent.includes('Delete conversation') ||
+                    item.textContent.includes('删除对话')
+                );
 
                 if (deleteButton) {
                     console.log('找到删除按钮，尝试点击');
@@ -273,10 +285,6 @@
                     console.log('未找到删除按钮，继续观察');
                 }
             };
-
-            deleteButtonObserver = new MutationObserver((mutations, observer) => {
-                findAndClickDeleteButton();
-            });
 
             const observeConfirmButton = () => {
                 confirmButtonObserver = new MutationObserver((mutations, observer) => {
@@ -306,6 +314,9 @@
                 console.log('点击选项按钮');
                 optionsButton.click();
                 setTimeout(() => {
+                    deleteButtonObserver = new MutationObserver((mutations, observer) => {
+                        findAndClickDeleteButton();
+                    });
                     deleteButtonObserver.observe(document.body, {
                         childList: true,
                         subtree: true
@@ -369,14 +380,17 @@
     // 判断当前是否在私信列表页面
     function isMessagePage() {
         // 私信列表的 url 是 `/messages`, 点开某条私信的 url 是 `/messages/114514`
-        return window.location.pathname.startsWith('/messages');
+        // 这里加一个排除 /messages/requests
+        return window.location.pathname.startsWith('/messages')
+            && !window.location.pathname.includes('/requests');
     }
 
     // 判断当前是否在私信请求列表的页面
     function isMessageRequestsPage() {
         // 私信请求列表的 url 是 `/messages/requests`
         // 点开更多可能包含冒犯的 url 是 `/messages/requests/additional`
-        return window.location.pathname.endsWith('/messages/requests') || window.location.pathname.endsWith('/messages/requests/additional') ;
+        return window.location.pathname.endsWith('/messages/requests')
+            || window.location.pathname.endsWith('/messages/requests/additional');
     }
 
     // 获取用户选择的删除数量
@@ -392,6 +406,11 @@
     // 监听页面变化，能高亮新收到的私信
     function observePageChanges() {
         if (isMessagePage() || isMessageRequestsPage()) {
+            // 如果 observer 已经存在，先断开再重新观察，避免重复
+            if (observer) {
+                observer.disconnect();
+            }
+
             observer = new MutationObserver((mutations) => {
                 for (let mutation of mutations) {
                     if (mutation.type === 'childList') {
@@ -421,7 +440,10 @@
             observer.disconnect();
             observer = null;
         }
-        init();
+        // [新增] 加入短暂延时，让 DOM 更新完成
+        setTimeout(() => {
+            init();
+        }, 500);
     }
 
     // 监听页面变化
